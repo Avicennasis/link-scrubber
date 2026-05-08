@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Link Scrubber</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Link Scrubber</h1>
+      <label class="toggle">
+        <input type="checkbox" id="enabledToggle" checked>
+        <span class="slider"></span>
+      </label>
+    </header>
+
+    <div class="stats" id="stats">Loading...</div>
+
+    <div class="global-section" id="globalSection">
+      <div class="section-header">
+        <span class="section-title">Global Rule</span>
+        <button class="expand-btn" id="expandBtn">Customize per-param &#9662;</button>
+      </div>
+      <div class="global-controls">
+        <div class="action-toggle" id="globalToggle">
+          <button id="globalRemove">Remove all</button>
+          <button id="globalRewrite">Rewrite all to</button>
+        </div>
+        <input type="text" id="globalValue" class="rewrite-value" placeholder="donttrackme" value="donttrackme">
+      </div>
+    </div>
+
+    <div class="param-list" id="paramList"></div>
+
+    <div class="add-param" id="addParamSection">
+      <input type="text" id="newParam" placeholder="Add parameter name (e.g. utm_source)">
+      <button id="addBtn">Add</button>
+    </div>
+
+    <div class="footer">
+      <button id="resetBtn" class="link-btn">Reset to defaults</button>
+    </div>
+  </div>
+
+  <script type="module" src="./main.ts"></script>
+</body>
+</html>

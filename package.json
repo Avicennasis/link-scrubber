@@ -2,17 +2,31 @@
   "name": "link-scrubber",
   "description": "Automatically strip or rewrite tracking parameters from URLs",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.1.0",
   "type": "module",
+  "license": "MIT",
+  "author": "Avicennasis",
+  "homepage": "https://github.com/Avicennasis/link-scrubber",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Avicennasis/link-scrubber.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Avicennasis/link-scrubber/issues"
+  },
   "scripts": {
     "dev": "wxt",
     "dev:firefox": "wxt --browser firefox",
     "build": "wxt build",
     "build:firefox": "wxt build --browser firefox",
     "zip": "wxt zip",
-    "zip:firefox": "wxt zip --browser firefox"
+    "zip:firefox": "wxt zip --browser firefox",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "wxt": "^0.20.25"
+    "wxt": "^0.20.25",
+    "vitest": "^2.1.0",
+    "happy-dom": "^15.0.0"
   }
 }

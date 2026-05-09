@@ -1,0 +1,153 @@
+# =============================================================================
+# CI - Link Scrubber
+# =============================================================================
+# Runs on every push and pull request to verify:
+#   1. Vitest unit suite passes (rewriter logic).
+#   2. Both Chromium and Firefox builds complete via WXT.
+#   3. Generated manifests are valid JSON with the right manifest_version.
+#   4. No external URLs appear in source code (privacy/security check).
+# =============================================================================
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test
+
+      - name: Build for Chromium
+        run: npm run build
+
+      - name: Build for Firefox
+        run: npm run build:firefox
+
+      - name: Validate manifests
+        run: |
+          echo "Validating manifests..."
+          python3 << 'PYEOF'
+          import json, sys, glob
+
+          errors = []
+
+          for manifest_path in sorted(glob.glob(".output/*/manifest.json")):
+              with open(manifest_path) as f:
+                  m = json.load(f)
+              target = manifest_path.split("/")[1]
+              if m.get("manifest_version") not in (2, 3):
+                  errors.append(f"{target}: manifest_version is {m.get('manifest_version')}, expected 2 or 3")
+              else:
+                  print(f"  {target}: valid (MV{m['manifest_version']}, name='{m.get('name')}')")
+
+          if errors:
+              for e in errors:
+                  print(f"ERROR: {e}")
+              sys.exit(1)
+
+          print("Manifest validation passed.")
+          PYEOF
+
+      - name: Security - no external URLs in source
+        run: |
+          echo "Checking for external URL references in source files..."
+          python3 << 'PYEOF'
+          import re, os, sys, glob
+
+          # Strip comments (TS/JS // and /* */, plus HTML <!-- -->), then
+          # scan the remaining code for http(s):// or protocol-relative URLs.
+          # Documentation URLs in comments are fine; what we're checking is
+          # that no executable code fetches from a remote host.
+
+          url_pattern = re.compile(r'https?://[a-zA-Z]')
+          # Protocol-relative URLs (e.g., //evil.com/script.js).
+          # The negative lookbehind avoids matching the :// in https://.
+          proto_relative_pattern = re.compile(r'(?<![:\w])//[a-zA-Z]')
+
+          # W3C XML namespace URIs are identifiers, not fetch targets.
+          xml_namespace_allowlist = (
+              'http://www.w3.org/2000/svg',
+              'http://www.w3.org/1999/xhtml',
+              'http://www.w3.org/1998/Math/MathML',
+              'http://www.w3.org/1999/xlink',
+          )
+
+          single_line_comment_patterns = [
+              re.compile(r'(?<!:)//.*$'),
+              re.compile(r'<!--.*?-->'),
+          ]
+
+          source_dirs = ('entrypoints', 'utils')
+          source_exts = ('.ts', '.tsx', '.js', '.html', '.css')
+          found = []
+
+          for d in source_dirs:
+              for filepath in glob.glob(f'{d}/**/*', recursive=True):
+                  if not os.path.isfile(filepath):
+                      continue
+                  if not filepath.endswith(source_exts):
+                      continue
+
+                  in_block_comment = False
+                  with open(filepath) as f:
+                      for lineno, line in enumerate(f, 1):
+                          stripped = line
+
+                          if in_block_comment:
+                              close_idx = stripped.find('*/')
+                              if close_idx == -1:
+                                  continue
+                              stripped = stripped[close_idx + 2:]
+                              in_block_comment = False
+
+                          while '/*' in stripped:
+                              open_idx = stripped.find('/*')
+                              close_idx = stripped.find('*/', open_idx + 2)
+                              if close_idx != -1:
+                                  stripped = stripped[:open_idx] + stripped[close_idx + 2:]
+                              else:
+                                  stripped = stripped[:open_idx]
+                                  in_block_comment = True
+                                  break
+
+                          for cp in single_line_comment_patterns:
+                              stripped = cp.sub('', stripped)
+
+                          for ns in xml_namespace_allowlist:
+                              stripped = stripped.replace(ns, '')
+
+                          if url_pattern.search(stripped) or proto_relative_pattern.search(stripped):
+                              found.append(f"  {filepath}:{lineno}: {line.rstrip()}")
+
+          if found:
+              print("ERROR: External URLs found in non-comment source code:")
+              for f in found:
+                  print(f)
+              print("\nAll resources must be bundled locally. See Privacy & Transparency in README.")
+              sys.exit(1)
+
+          print("No external URLs found in source code.")
+          PYEOF

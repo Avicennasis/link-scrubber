@@ -27,6 +27,6 @@
   "devDependencies": {
     "wxt": "^0.20.26",
     "vitest": "^2.1.0",
-    "happy-dom": "^15.0.0"
+    "happy-dom": "^20.9.0"
   }
 }

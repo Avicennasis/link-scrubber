@@ -27,7 +27,7 @@
   "devDependencies": {
     "wxt": "^0.20.26",
     "vitest": "^4.1.8",
-    "happy-dom": "^20.10.1"
+    "happy-dom": "^20.10.3"
   },
   "overrides": {
     "shell-quote": "^1.8.2",

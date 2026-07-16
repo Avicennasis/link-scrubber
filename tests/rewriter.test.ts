@@ -192,3 +192,38 @@ describe('rewriteUrl — parity between content script and main-world paths', ()
     expect(r.url).toContain(expected);
   });
 });
+
+// -----------------------------------------------------------------------------
+// EXPLICIT baseUrl (service-worker safety, FR-269)
+// -----------------------------------------------------------------------------
+
+describe('rewriteUrl — explicit baseUrl parameter', () => {
+  it('resolves a relative URL against an explicit baseUrl', () => {
+    const params = makeParams('utm_source');
+    const r = rewriteUrl('/path?utm_source=fb', params, 'remove', REWRITE_VALUE, 'https://example.com/');
+    expect(r.changed).toBe(true);
+    expect(r.url).toBe('https://example.com/path');
+  });
+
+  it('rewrites absolute URLs regardless of baseUrl', () => {
+    const params = makeParams('utm_source');
+    const r = rewriteUrl('https://site.test/p?utm_source=fb', params, 'remove', REWRITE_VALUE, 'https://other.example/');
+    expect(r.changed).toBe(true);
+    expect(r.url).toBe('https://site.test/p');
+  });
+
+  it('passes an unresolvable relative URL through unchanged when no base is usable', () => {
+    // Simulate a service-worker-like context: no baseUrl and no document.
+    const params = makeParams('utm_source');
+    const originalDoc = globalThis.document;
+    // @ts-expect-error - deliberately removing document to mimic a worker
+    delete globalThis.document;
+    try {
+      const r = rewriteUrl('/rel?utm_source=fb', params, 'remove', REWRITE_VALUE);
+      expect(r.changed).toBe(false);
+      expect(r.url).toBe('/rel?utm_source=fb');
+    } finally {
+      globalThis.document = originalDoc;
+    }
+  });
+});

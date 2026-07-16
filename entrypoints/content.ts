@@ -50,11 +50,17 @@ export default defineContentScript({
     // refreshed when the background script broadcasts a change.
     let config = await getConfig();
 
-    // Per-page totals. These get reset on a full re-scan and accumulate
-    // as new links arrive via MutationObserver. The background service
+    // Per-page totals. These accumulate over the page's lifetime (initial
+    // scan + MutationObserver + config re-scans). The background service
     // worker uses them to drive the toolbar badge and the popup display.
     let rewriteCount = 0;
     let paramCounts: Record<string, number> = {};
+
+    // Anchors we've already counted, so a config-change re-scan doesn't lose
+    // the running total: links rewritten earlier now hold clean URLs and no
+    // longer match, which used to reset the badge toward zero (FR-267). The
+    // WeakSet also stops a single anchor being double-counted across re-scans.
+    const countedLinks = new WeakSet<HTMLAnchorElement>();
 
     /**
      * Rewrite a single <a> element's href attribute, in place, if any
@@ -75,21 +81,26 @@ export default defineContentScript({
 
       if (result.changed) {
         a.href = result.url;
-        rewriteCount++;
-        for (const [param, count] of Object.entries(result.paramCounts)) {
-          paramCounts[param] = (paramCounts[param] ?? 0) + count;
+        // Only add to the running totals the first time we rewrite a given
+        // anchor, so re-scans after a config change don't double-count and
+        // don't lose links that are already clean (FR-267).
+        if (!countedLinks.has(a)) {
+          countedLinks.add(a);
+          rewriteCount++;
+          for (const [param, count] of Object.entries(result.paramCounts)) {
+            paramCounts[param] = (paramCounts[param] ?? 0) + count;
+          }
         }
       }
     }
 
     /**
      * Walk every <a href> element on the page and rewrite as needed.
-     * Resets the running totals first, so this is a fresh count.
-     * Used at startup and after the user changes config.
+     * Does NOT reset the running totals — they accumulate over the page's
+     * lifetime (the `countedLinks` WeakSet prevents double-counting). Used at
+     * startup and after the user changes config.
      */
     function scanAllLinks() {
-      rewriteCount = 0;
-      paramCounts = {};
       const links = document.querySelectorAll<HTMLAnchorElement>('a[href]');
       links.forEach(processLink);
       reportCount();
@@ -131,10 +142,11 @@ export default defineContentScript({
     script.src = browser.runtime.getURL('/main-world.js');
     script.onload = () => {
       script.remove();
-      // Wildcard target ('*') is safe here because the message contains
-      // only public config (no secrets), and the main-world script
-      // filters incoming messages by `event.data?.type === 'link-scrubber-config'`.
-      window.postMessage({ type: 'link-scrubber-config', config }, '*');
+      // Target this page's own origin instead of '*' so the config (param
+      // names + custom rewrite values) is only delivered to same-origin
+      // listeners, never to a cross-origin frame (FR-263/FR-271). The
+      // main-world script runs in this same origin, so it still receives it.
+      window.postMessage({ type: 'link-scrubber-config', config }, window.location.origin);
     };
     (document.head || document.documentElement).appendChild(script);
 
@@ -236,7 +248,8 @@ export default defineContentScript({
       if (!ctx.isValid) return;
       if (message.type === 'configUpdated') {
         config = message.config;
-        window.postMessage({ type: 'link-scrubber-config', config }, '*');
+        // Same-origin target (not '*') — see the injection site above (FR-263).
+        window.postMessage({ type: 'link-scrubber-config', config }, window.location.origin);
         scanAllLinks();
       }
     });

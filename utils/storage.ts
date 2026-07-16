@@ -142,24 +142,32 @@ const DEFAULT_CONFIG: ExtensionConfig = {
  *          defaults on any storage error.
  */
 export async function getConfig(): Promise<ExtensionConfig> {
-  const stored = await browser.storage.sync.get('config');
-  if (!stored.config) {
-    // First run on this profile — seed the defaults and return them.
-    await browser.storage.sync.set({ config: DEFAULT_CONFIG });
+  try {
+    const stored = await browser.storage.sync.get('config');
+    const savedConfig = stored.config as Partial<ExtensionConfig> | undefined;
+    if (!savedConfig) {
+      // First run on this profile — seed the defaults and return them.
+      await browser.storage.sync.set({ config: DEFAULT_CONFIG });
+      return { ...DEFAULT_CONFIG };
+    }
+    // Deep-merge the params field so new defaults reach existing users.
+    // Top-level fields (enabled, globalMode, globalRewriteValue) always
+    // come from the stored config because the user's choices for those
+    // are what they expect to see.
+    return {
+      ...DEFAULT_CONFIG,
+      ...savedConfig,
+      params: {
+        ...DEFAULT_PARAMS,
+        ...savedConfig.params,
+      },
+    };
+  } catch {
+    // Storage can be unavailable (e.g. incognito with sync disabled) or the
+    // read can reject. Honor the "never throws" contract above by falling
+    // back to the defaults rather than surfacing an unhandled rejection (FR-265).
     return { ...DEFAULT_CONFIG };
   }
-  // Deep-merge the params field so new defaults reach existing users.
-  // Top-level fields (enabled, globalMode, globalRewriteValue) always
-  // come from the stored config because the user's choices for those
-  // are what they expect to see.
-  return {
-    ...DEFAULT_CONFIG,
-    ...stored.config,
-    params: {
-      ...DEFAULT_PARAMS,
-      ...stored.config.params,
-    },
-  };
 }
 
 /**

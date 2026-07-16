@@ -50,12 +50,13 @@ export interface RewriteResult {
  * Take a URL string and the user's tracking-parameter configuration, and
  * return either the rewritten URL or the original (if nothing matched).
  *
- * The function is *pure*: it does not read from storage, write to storage,
- * make network calls, or touch the DOM. Every input/output pair is fully
- * determined by the arguments.
+ * The function does not read/write storage or make network calls. It is pure
+ * with respect to its arguments — the only ambient dependency is the base URL
+ * used to resolve *relative* inputs: pass `baseUrl` explicitly (required in a
+ * service-worker context, which has no `document`), or leave it out and it
+ * falls back to `document.baseURI` when a document is available (FR-269).
  *
- * @param urlString - The raw URL to rewrite. Can be absolute or relative;
- *                    relative URLs are resolved against `document.baseURI`.
+ * @param urlString - The raw URL to rewrite. Can be absolute or relative.
  * @param params - The map of "parameter name → action". Comes straight from
  *                 the user's saved config.
  * @param globalMode - The fallback behavior for parameters that are listed
@@ -64,6 +65,10 @@ export interface RewriteResult {
  *                     the value).
  * @param globalRewriteValue - The replacement value to use when the global
  *                             rule says "rewrite" (e.g. "donttrackme").
+ * @param baseUrl - Optional base for resolving relative URLs. Defaults to
+ *                  `document.baseURI` when a document exists, else undefined
+ *                  (absolute inputs still work; relative inputs fail closed
+ *                  and pass through unchanged).
  * @returns A `RewriteResult` describing the new URL and what changed.
  */
 export function rewriteUrl(
@@ -71,6 +76,7 @@ export function rewriteUrl(
   params: Record<string, ParamConfig>,
   globalMode: GlobalMode,
   globalRewriteValue: string,
+  baseUrl?: string,
 ): RewriteResult {
   // The default return for "nothing changed" — the URL passes through and
   // both `changed` and `paramCounts` indicate that no work was done.
@@ -90,7 +96,11 @@ export function rewriteUrl(
   // original string untouched is the safe choice.
   let url: URL;
   try {
-    url = new URL(urlString, document.baseURI);
+    // Resolve relative URLs against the caller-provided base, or fall back to
+    // document.baseURI only when a document exists (guard keeps this usable in
+    // a service-worker context, FR-269).
+    const base = baseUrl ?? (typeof document !== 'undefined' ? document.baseURI : undefined);
+    url = new URL(urlString, base);
   } catch {
     return result;
   }

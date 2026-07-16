@@ -109,8 +109,13 @@ export default defineContentScript({
     // -------------------------------------------------------------------------
     const originalPushState = history.pushState.bind(history);
     history.pushState = function (data: any, title: string, url?: string | URL | null) {
-      if (url && typeof url === 'string') {
+      if (typeof url === 'string') {
         url = rewrite(url);
+      } else if (url instanceof URL) {
+        // URL object arguments used to pass through unrewritten, so a site
+        // calling pushState(..., new URL('?utm_source=fb', ...)) bypassed the
+        // scrubber (FR-264/FR-272). Rewrite and re-wrap to keep the type.
+        url = new URL(rewrite(url.toString()));
       }
       return originalPushState(data, title, url);
     };
@@ -122,8 +127,11 @@ export default defineContentScript({
     // -------------------------------------------------------------------------
     const originalReplaceState = history.replaceState.bind(history);
     history.replaceState = function (data: any, title: string, url?: string | URL | null) {
-      if (url && typeof url === 'string') {
+      if (typeof url === 'string') {
         url = rewrite(url);
+      } else if (url instanceof URL) {
+        // Same URL-object bypass as pushState (FR-264/FR-272).
+        url = new URL(rewrite(url.toString()));
       }
       return originalReplaceState(data, title, url);
     };

@@ -270,9 +270,11 @@ globalValue.addEventListener('change', () => {
   setGlobalRewriteValue(globalValue.value).then(reload);
 });
 
-// Master on/off toggle.
+// Master on/off toggle. Chain reload() like every other handler so the popup
+// UI (stats label, global-toggle rendering) reflects the new state instead of
+// showing stale info after toggling (FR-268/FR-325).
 enabledToggle.addEventListener('change', () => {
-  setEnabled(enabledToggle.checked);
+  setEnabled(enabledToggle.checked).then(reload);
 });
 
 // Expand/collapse the per-param section.

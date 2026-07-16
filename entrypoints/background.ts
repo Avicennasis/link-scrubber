@@ -117,7 +117,11 @@ export default defineBackground(() => {
   // and `sendMessage` rejects with "Receiving end does not exist" for
   // those. That's expected; we silently ignore.
   // -------------------------------------------------------------------------
-  browser.storage.onChanged.addListener(async () => {
+  browser.storage.onChanged.addListener(async (_changes, areaName) => {
+    // Our config lives in storage.sync; ignore local/session writes so we
+    // don't re-read config and re-broadcast to every tab on unrelated
+    // storage activity (FR-266).
+    if (areaName !== 'sync') return;
     const config = await getConfig();
     const tabs = await browser.tabs.query({});
     for (const tab of tabs) {

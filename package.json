@@ -25,7 +25,7 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "wxt": "^0.20.26",
+    "wxt": "^0.21.0",
     "vitest": "^4.1.9",
     "happy-dom": "^20.10.6"
   },

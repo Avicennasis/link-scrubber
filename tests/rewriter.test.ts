@@ -139,6 +139,16 @@ describe('rewriteUrl — safety & edge cases', () => {
     ['empty string', ''],
     ['javascript: URI', 'javascript:alert(1)'],
     ['mailto: URI', 'mailto:test@example.com?utm_source=fb'],
+    // A scheme check anchored at index 0 and compared case-sensitively is
+    // bypassable: URL schemes are case-insensitive per RFC 3986, and
+    // browsers strip leading C0 controls before parsing. data: and
+    // vbscript: were missing entirely (CodeQL alert #22).
+    ['data: URI', 'data:text/html,<b>hi</b>?utm_source=fb'],
+    ['vbscript: URI', 'vbscript:msgbox(1)?utm_source=fb'],
+    ['uppercase JavaScript: URI', 'JavaScript:alert(1)?utm_source=fb'],
+    ['mixed-case DaTa: URI', 'DaTa:text/plain,x?utm_source=fb'],
+    ['javascript: URI behind a leading tab', '\tjavascript:alert(1)?utm_source=fb'],
+    ['javascript: URI behind a leading newline', '\njavascript:alert(1)?utm_source=fb'],
   ])('returns the input untouched for %s', (_label, input) => {
     const params = makeParams('utm_source');
     const r = rewriteUrl(input, params, 'remove', REWRITE_VALUE);

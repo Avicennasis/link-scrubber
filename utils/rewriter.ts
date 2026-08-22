@@ -11,7 +11,8 @@
 //
 // HOW IT WORKS:
 //   1. Parse the input string as a URL. Skip if it's not a real URL (empty,
-//      "javascript:", "mailto:", or otherwise unparseable).
+//      a non-rewritable scheme such as "javascript:", "vbscript:", "data:" or
+//      "mailto:", or otherwise unparseable).
 //   2. For each query parameter in the URL, look it up in the user's config:
 //        - If the user has explicitly customized this parameter (the _custom
 //          flag is set), use its action ("remove" or "rewrite") and value.
@@ -71,6 +72,40 @@ export interface RewriteResult {
  *                  and pass through unchanged).
  * @returns A `RewriteResult` describing the new URL and what changed.
  */
+// Schemes this rewriter must never touch. `javascript:` and `vbscript:` are
+// inline script, `data:` carries its payload inline, and `mailto:`/`tel:` are
+// not HTTP-style URLs with meaningful query parameters — rewriting any of them
+// changes their semantics rather than scrubbing a tracker.
+const NON_REWRITABLE_SCHEMES = new Set([
+  'javascript',
+  'vbscript',
+  'data',
+  'mailto',
+  'tel',
+  'blob',
+  'file',
+  'about',
+]);
+
+/**
+ * Extract the lowercased URI scheme from an input string, or `null` when the
+ * input carries no scheme (a relative URL).
+ *
+ * Deliberately not a `startsWith` check. Schemes are case-insensitive per
+ * RFC 3986, so `JavaScript:` is the same scheme as `javascript:`, and browsers
+ * strip leading C0 control characters and spaces before parsing, so a check
+ * anchored at index 0 is bypassable with a leading tab or newline. Both forms
+ * are live XSS-filter bypasses in the wild, which is why the previous
+ * two-scheme `startsWith` pair was reported (CodeQL js/incomplete-url-scheme-check).
+ *
+ * Stays pure: string in, string or null out.
+ */
+function schemeOf(urlString: string): string | null {
+  const trimmed = urlString.replace(/^[\u0000-\u0020]+/, '');
+  const match = /^([a-zA-Z][a-zA-Z0-9+.\-]*):/.exec(trimmed);
+  return match ? match[1].toLowerCase() : null;
+}
+
 export function rewriteUrl(
   urlString: string,
   params: Record<string, ParamConfig>,
@@ -82,11 +117,11 @@ export function rewriteUrl(
   // both `changed` and `paramCounts` indicate that no work was done.
   const result: RewriteResult = { url: urlString, changed: false, paramCounts: {} };
 
-  // Skip URLs we shouldn't touch. `javascript:` URIs are inline scripts and
-  // rewriting them would break their semantics. `mailto:` is an email
-  // address, not a HTTP-style URL with query parameters. Empty strings are
-  // not URLs at all.
-  if (!urlString || urlString.startsWith('javascript:') || urlString.startsWith('mailto:')) {
+  // Skip URLs we shouldn't touch — see NON_REWRITABLE_SCHEMES. Empty strings
+  // are not URLs at all. Schemes are compared case-insensitively and after
+  // stripping leading control characters, because both are bypasses.
+  const scheme = schemeOf(urlString);
+  if (!urlString || (scheme !== null && NON_REWRITABLE_SCHEMES.has(scheme))) {
     return result;
   }
 

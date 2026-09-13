@@ -121,6 +121,12 @@ const DEFAULT_CONFIG: ExtensionConfig = {
   globalRewriteValue: 'donttrackme',
 };
 
+/** Deep copy the shipped defaults so callers can never mutate DEFAULT_CONFIG
+ * (or its shared `params` object) by accident (FR-334). */
+function cloneDefaults(): ExtensionConfig {
+  return JSON.parse(JSON.stringify(DEFAULT_CONFIG)) as ExtensionConfig;
+}
+
 /**
  * Load the user's configuration from `browser.storage.sync`.
  *
@@ -147,8 +153,8 @@ export async function getConfig(): Promise<ExtensionConfig> {
     const savedConfig = stored.config as Partial<ExtensionConfig> | undefined;
     if (!savedConfig) {
       // First run on this profile — seed the defaults and return them.
-      await browser.storage.sync.set({ config: DEFAULT_CONFIG });
-      return { ...DEFAULT_CONFIG };
+      await browser.storage.sync.set({ config: cloneDefaults() });
+      return cloneDefaults();
     }
     // Deep-merge the params field so new defaults reach existing users.
     // Top-level fields (enabled, globalMode, globalRewriteValue) always
@@ -166,7 +172,7 @@ export async function getConfig(): Promise<ExtensionConfig> {
     // Storage can be unavailable (e.g. incognito with sync disabled) or the
     // read can reject. Honor the "never throws" contract above by falling
     // back to the defaults rather than surfacing an unhandled rejection (FR-265).
-    return { ...DEFAULT_CONFIG };
+    return cloneDefaults();
   }
 }
 
@@ -201,7 +207,7 @@ export async function removeParam(name: string): Promise<void> {
  * customizations.
  */
 export async function resetDefaults(): Promise<void> {
-  await browser.storage.sync.set({ config: { ...DEFAULT_CONFIG } });
+  await browser.storage.sync.set({ config: cloneDefaults() });
 }
 
 /**

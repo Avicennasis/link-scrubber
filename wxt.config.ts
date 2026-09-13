@@ -36,7 +36,6 @@ export default defineConfig({
     description: 'Automatically strip or rewrite tracking parameters from URLs',
     permissions: [
       'storage',     // For browser.storage.sync — saves user config
-      'scripting',   // Reserved for future MV3 dynamic content-script needs
       'activeTab',   // Lets the popup query the active tab's per-page count
       'tabs',        // For tab tracking and config-change broadcast
     ],

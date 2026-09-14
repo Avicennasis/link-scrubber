@@ -148,7 +148,7 @@ All settings are managed through the popup:
 - **Add/remove parameters** — add any parameter name to track, or delete ones you don't need
 - **Reset to defaults** — restore the original 17-parameter list and global rewrite mode
 
-Settings sync across sessions via `chrome.storage.sync`.
+Settings sync across sessions via `browser.storage.sync`.
 
 When a new release adds default tracker parameters, existing users automatically pick them up without losing their customizations (deep-merge, see `utils/storage.ts`). The one edge case: if you've explicitly *deleted* a default parameter from your list, it'll reappear after such an upgrade. Delete it again and you're back to your preferred state.
 

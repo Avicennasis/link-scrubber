@@ -111,6 +111,9 @@ export default defineBackground(() => {
   browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
     if (changeInfo.status === 'loading' || changeInfo.url) {
       delete tabData[tabId];
+      // Restricted pages never inject the content script, so no fresh
+      // rewriteCount message will arrive to clear the previous page's badge.
+      browser.action.setBadgeText({ text: '', tabId });
     }
   });
 

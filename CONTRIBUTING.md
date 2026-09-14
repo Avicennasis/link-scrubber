@@ -64,7 +64,7 @@ PR will be blocked. All resources must be bundled locally.
 - [ ] `npm test` is green locally.
 - [ ] `npm run build && npm run build:firefox` both succeed.
 - [ ] No new external URLs in `entrypoints/` or `utils/` (privacy/security check).
-- [ ] CSP unchanged or tightened — never add `'unsafe-inline'`.
+- [ ] No inline scripts or styles — MV3's default CSP forbids `'unsafe-inline'`, so any injected code must be a bundled file.
 - [ ] README and docs updated if public behavior changed.
 - [ ] `CHANGELOG.md` entry added under `[Unreleased]`.
 

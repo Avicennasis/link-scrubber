@@ -176,6 +176,26 @@ export async function getConfig(): Promise<ExtensionConfig> {
   }
 }
 
+// browser.storage has no transaction, so two read-modify-write helpers racing
+// (e.g. the user toggling two settings quickly) could clobber each other's
+// writes. Every mutation goes through this serial queue (FR-326).
+let writeQueue: Promise<unknown> = Promise.resolve();
+
+function enqueueWrite(write: () => Promise<void>): Promise<void> {
+  const run = writeQueue.then(write);
+  // Keep the chain alive even if one write rejects; callers still see the error.
+  writeQueue = run.catch(() => {});
+  return run;
+}
+
+function mutateConfig(mutate: (config: ExtensionConfig) => void): Promise<void> {
+  return enqueueWrite(async () => {
+    const full = await getConfig();
+    mutate(full);
+    await browser.storage.sync.set({ config: full });
+  });
+}
+
 /**
  * Add or update a single parameter's configuration. Used by the popup
  * when the user clicks Remove/Rewrite for a specific parameter or types
@@ -185,9 +205,9 @@ export async function getConfig(): Promise<ExtensionConfig> {
  * @param config - The new config for that parameter.
  */
 export async function updateParam(name: string, config: ParamConfig): Promise<void> {
-  const full = await getConfig();
-  full.params[name] = config;
-  await browser.storage.sync.set({ config: full });
+  return mutateConfig((full) => {
+    full.params[name] = config;
+  });
 }
 
 /**
@@ -197,9 +217,9 @@ export async function updateParam(name: string, config: ParamConfig): Promise<vo
  * @param name - The parameter name to remove.
  */
 export async function removeParam(name: string): Promise<void> {
-  const full = await getConfig();
-  delete full.params[name];
-  await browser.storage.sync.set({ config: full });
+  return mutateConfig((full) => {
+    delete full.params[name];
+  });
 }
 
 /**
@@ -207,7 +227,9 @@ export async function removeParam(name: string): Promise<void> {
  * customizations.
  */
 export async function resetDefaults(): Promise<void> {
-  await browser.storage.sync.set({ config: cloneDefaults() });
+  return enqueueWrite(async () => {
+    await browser.storage.sync.set({ config: cloneDefaults() });
+  });
 }
 
 /**
@@ -217,9 +239,9 @@ export async function resetDefaults(): Promise<void> {
  * @param enabled - Whether the extension should be active.
  */
 export async function setEnabled(enabled: boolean): Promise<void> {
-  const full = await getConfig();
-  full.enabled = enabled;
-  await browser.storage.sync.set({ config: full });
+  return mutateConfig((full) => {
+    full.enabled = enabled;
+  });
 }
 
 /**
@@ -229,9 +251,9 @@ export async function setEnabled(enabled: boolean): Promise<void> {
  * @param mode - The new global rule.
  */
 export async function setGlobalMode(mode: GlobalMode): Promise<void> {
-  const full = await getConfig();
-  full.globalMode = mode;
-  await browser.storage.sync.set({ config: full });
+  return mutateConfig((full) => {
+    full.globalMode = mode;
+  });
 }
 
 /**
@@ -241,7 +263,7 @@ export async function setGlobalMode(mode: GlobalMode): Promise<void> {
  * @param value - The new global rewrite value.
  */
 export async function setGlobalRewriteValue(value: string): Promise<void> {
-  const full = await getConfig();
-  full.globalRewriteValue = value;
-  await browser.storage.sync.set({ config: full });
+  return mutateConfig((full) => {
+    full.globalRewriteValue = value;
+  });
 }

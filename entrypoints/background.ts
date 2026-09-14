@@ -105,6 +105,18 @@ export default defineBackground(() => {
     delete tabData[tabId];
   });
 
+  // Clear a tab's cached counts when it navigates. The content script also
+  // reports a fresh count on re-injection, but relying on that alone leaves
+  // stale data visible for restricted pages or slow reloads (FR-331).
+  browser.tabs.onUpdated.addListener((tabId, changeInfo) => {
+    if (changeInfo.status === 'loading' || changeInfo.url) {
+      delete tabData[tabId];
+      // Restricted pages never inject the content script, so no fresh
+      // rewriteCount message will arrive to clear the previous page's badge.
+      browser.action.setBadgeText({ text: '', tabId });
+    }
+  });
+
   // -------------------------------------------------------------------------
   // STORAGE-CHANGE BROADCAST
   // When the popup writes a new config (toggling the master switch,

@@ -282,13 +282,12 @@ expandBtn.addEventListener('click', toggleExpand);
 
 // Add a new tracker parameter to the list. Defaults to "remove" — the
 // user can switch it to "rewrite" with the per-row toggle if they want.
-addBtn.addEventListener('click', () => {
+addBtn.addEventListener('click', async () => {
   const name = newParamInput.value.trim();
   if (!name) return;
-  updateParam(name, { action: 'remove' }).then(() => {
-    newParamInput.value = '';
-    reload();
-  });
+  await updateParam(name, { action: 'remove' });
+  newParamInput.value = '';
+  reload();
 });
 
 // Pressing Enter in the "add new parameter" input is the same as

@@ -181,15 +181,19 @@ export async function getConfig(): Promise<ExtensionConfig> {
 // writes. Every mutation goes through this serial queue (FR-326).
 let writeQueue: Promise<unknown> = Promise.resolve();
 
+function enqueueWrite(write: () => Promise<void>): Promise<void> {
+  const run = writeQueue.then(write);
+  // Keep the chain alive even if one write rejects; callers still see the error.
+  writeQueue = run.catch(() => {});
+  return run;
+}
+
 function mutateConfig(mutate: (config: ExtensionConfig) => void): Promise<void> {
-  const run = writeQueue.then(async () => {
+  return enqueueWrite(async () => {
     const full = await getConfig();
     mutate(full);
     await browser.storage.sync.set({ config: full });
   });
-  // Keep the chain alive even if one write rejects; callers still see the error.
-  writeQueue = run.catch(() => {});
-  return run;
 }
 
 /**
@@ -223,7 +227,9 @@ export async function removeParam(name: string): Promise<void> {
  * customizations.
  */
 export async function resetDefaults(): Promise<void> {
-  await browser.storage.sync.set({ config: cloneDefaults() });
+  return enqueueWrite(async () => {
+    await browser.storage.sync.set({ config: cloneDefaults() });
+  });
 }
 
 /**
